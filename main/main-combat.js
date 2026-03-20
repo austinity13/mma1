@@ -483,7 +483,7 @@ function runFight(){
       const atkStyle = atk.style||'All-Rounder';
       const styleGrapBonus = (atkStyle==='Wrestler'||atkStyle==='BJJ Artist') ? 0.28
                            : (atkStyle==='Pressure Fighter') ? 0.10
-                           : (atkStyle==='Striker')   ? -0.38
+                           : (atkStyle==='Boxer')   ? -0.42
                            : (atkStyle==='Kickboxer') ? -0.35
                            : (atkStyle==='Muay Thai') ? -0.12
                            : (atkStyle==='Brawler')   ? -0.25
@@ -516,7 +516,7 @@ function runFight(){
       const tdIQAdjustment = fiqTDmod * tdAdvantage * 2;
       // Low fight IQ strikers: even low-IQ non-grapplers stay on the feet instinctively
       // This adds an extra penalty for striking styles with low IQ attempting to grapple
-      const isStrikingStyle = ['Striker','Kickboxer','Muay Thai','Brawler','Counter-Striker'].includes(atkStyle);
+      const isStrikingStyle = ['Boxer','Kickboxer','Muay Thai','Brawler','Counter-Striker'].includes(atkStyle);
       const lowIQStrikerBias = (isStrikingStyle && atkFightIQ < 65)
         ? (65 - atkFightIQ) * -0.003  // up to -0.195 extra penalty at fight_iq=0
         : 0;
@@ -2387,7 +2387,7 @@ function _headlessRound(r, f, o, fStat, oStat, fStatD, oStatD,
     const baseGrapScore=fAtk?avg2(fStat('grap.td.dl_td',60),fStat('grap.clinch.control',60),fStat('grap.ground.top_ctrl',55)):avg2(oStat('grap.td.dl_td',60),oStat('grap.clinch.control',60),oStat('grap.ground.top_ctrl',55));
     const baseStrScore=fAtk?avg2(fStat('str.boxing.jab',60),fStat('str.boxing.cross',60),fStat('str.kicking.low_kicks',60)):avg2(oStat('str.boxing.jab',60),oStat('str.boxing.cross',60),oStat('str.kicking.low_kicks',60));
     const atkStyle=atk.style||'All-Rounder';
-    const styleGrapBonus=(atkStyle==='Wrestler'||atkStyle==='BJJ Artist')?0.28:(atkStyle==='Pressure Fighter')?0.10:(atkStyle==='Striker')?-0.38:(atkStyle==='Kickboxer')?-0.35:(atkStyle==='Muay Thai')?-0.12:(atkStyle==='Brawler')?-0.25:(atkStyle==='Counter-Striker')?-0.30:0;
+    const styleGrapBonus=(atkStyle==='Wrestler'||atkStyle==='BJJ Artist')?0.28:(atkStyle==='Pressure Fighter')?0.10:(atkStyle==='Boxer')?-0.42:(atkStyle==='Kickboxer')?-0.35:(atkStyle==='Muay Thai')?-0.12:(atkStyle==='Brawler')?-0.25:(atkStyle==='Counter-Striker')?-0.30:0;
     const atkTDUsed=fAtk?fTDattempts:oTDattempts;
     const tdBudgetExhausted=atkTDUsed>=maxTDperRound;
     const atkFIQ_=fAtk?fStat('ment.fight_iq',65):oStat('ment.fight_iq',65);
@@ -2397,7 +2397,7 @@ function _headlessRound(r, f, o, fStat, oStat, fStatD, oStatD,
     const fiqMod_=(atkFIQ_-65)*0.04;
     const rawGrapProb=clamp(baseGrapScore/(baseGrapScore+baseStrScore||1)+styleGrapBonus,0.04,0.80);
     const tdIQAdj_=fiqMod_*tdAdv_*2;
-    const isStriking_=['Striker','Kickboxer','Muay Thai','Brawler','Counter-Striker'].includes(atkStyle);
+    const isStriking_=['Boxer','Kickboxer','Muay Thai','Brawler','Counter-Striker'].includes(atkStyle);
     const lowIQBias_=(isStriking_&&atkFIQ_<65)?(65-atkFIQ_)*-0.003:0;
     const grapProb=tdBudgetExhausted?0:clamp(rawGrapProb*0.38+tdIQAdj_+lowIQBias_,0.01,0.35);
     const atkAggression=fAtk?fStat('ment.aggression',65):oStat('ment.aggression',65);

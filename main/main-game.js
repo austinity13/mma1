@@ -162,7 +162,7 @@ const NICKNAMES = [
   'El Cucuy','The Marksman','Thunder','Rumble','Suga','The Alchemist',
   null,null,null,null,null,null
 ];
-const STYLES = ['Striker','Wrestler','BJJ Artist','Muay Thai','Kickboxer','All-Rounder','Pressure Fighter','Counter-Striker','Brawler'];
+const STYLES = ['Boxer','Wrestler','BJJ Artist','Muay Thai','Kickboxer','All-Rounder','Pressure Fighter','Counter-Striker','Brawler'];
 function pickNat(){
   // USA appears ~3x more often than any other single country (~30% of pool)
   const weighted = [];
@@ -214,13 +214,15 @@ function clamp(n,a,b){return Math.max(a,Math.min(b,n));}
 
 // Style → pillar weights (0-100 scale; applied as +/- from base roll)
 const STYLE_BIAS = {
-  'Striker':         { boxing:18, kicking:10, clinch_str:6, ground_str:2,
-                       takedowns:-22, td_def:2, submissions:-14, sub_def:0,
-                       clinch_grap:2, ground_ctrl:-8,
-                       strength:4, hand_speed:10, move_speed:6, reaction:8,
-                       cardio:2, recovery:-2, chin:6, body_tough:2, leg_dur:0, inj_res:0,
-                       fight_iq:4, decision:4, composure:6, aggression:4, adaptive:2,
-                       boxing_power:0, kicking_power:0, boxing_counters:2 },
+  'Boxer':         { boxing:26, kicking:-8, clinch_str:4, ground_str:0,
+                       takedowns:-24, td_def:0, submissions:-16, sub_def:-2,
+                       clinch_grap:0, ground_ctrl:-10,
+                       strength:6, hand_speed:16, move_speed:8, reaction:10,
+                       cardio:4, recovery:0, chin:8, body_tough:4, leg_dur:0, inj_res:2,
+                       fight_iq:6, decision:6, composure:8, aggression:2, adaptive:4,
+                       boxing_power:12, kicking_power:-10, boxing_counters:8 },
+  // Boxer: elite Western boxing — dominant jab/cross/hook, exceptional hand speed,
+  // head movement and counters. Zero kicks. Avoids grappling entirely. Pure stand-up.
 
   'Wrestler':        { boxing:-4, kicking:-8, clinch_str:6, ground_str:4,
                        takedowns:18, td_def:12, submissions:4, sub_def:6,
@@ -522,7 +524,7 @@ function genFighter(isPlayer=false, rank=null, forceDivision=null, forceNat=null
   // These represent the "typical" finishing pattern for that archetype
   const STYLE_FINISH_BIAS = {
     'Brawler':         { ko:0.52, sub:0.05, dec:0.43 },
-    'Striker':         { ko:0.38, sub:0.06, dec:0.56 },
+    'Boxer':         { ko:0.44, sub:0.03, dec:0.53 }, // More KO, almost no subs
     'Kickboxer':       { ko:0.32, sub:0.06, dec:0.62 },
     'Muay Thai':       { ko:0.30, sub:0.10, dec:0.60 },
     'Pressure Fighter':{ ko:0.25, sub:0.12, dec:0.63 },
