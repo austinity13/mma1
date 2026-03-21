@@ -2019,7 +2019,7 @@ function renderSchedule(){
 
     return `<div style="margin-bottom:14px;border:1px solid ${isCurrent?'var(--gold)':'var(--border)'};border-radius:4px;overflow:hidden">
       <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:${isPast?'var(--bg3)':isCurrent?'#1A1500':'var(--bg2)'}">
-        <div style="font-family:'Bebas Neue';font-size:24px;color:${weekColor};min-width:52px;line-height:1">${isCurrent?'NOW':'WK<br>'+e.week}</div>
+        <div style="font-family:'Bebas Neue';font-size:24px;color:${weekColor};min-width:52px;line-height:1">${isCurrent?'NOW':fmtWeek(e.week).replace(' ','<br>')}</div>
         <div style="flex:1">
           <div style="font-weight:700;font-size:14px">${e.name}</div>
           <div style="font-size:11px;color:var(--muted)">${fights.length} fight${fights.length!==1?'s':''} · ${isPast?'Completed':isCurrent?'Fight Week':'Upcoming'}</div>
@@ -2076,6 +2076,8 @@ function advanceWeek(){
   }
 
   G.week++;
+  // Ensure schedule extends far enough ahead
+  extendSchedule();
   // Apply training
   G.roster.forEach(f=>{
     const prog = G.trainingSelections[f.id];
@@ -2320,12 +2322,17 @@ function advanceWeek(){
   let offerPending = false;
   G.schedule.forEach(evt=>{
     const weeksOut = evt.week - G.week;
-    if(weeksOut === 7 && !evt.offerSent && !G.pendingOffer){
+    if(weeksOut === 6 && !evt.cardGenerated){
+      autoGenerateCard(evt);
+    }
+    // Send offer when: card is built AND either first time (weeksOut=6) OR player just responded
+    const offerReady = !evt.offerSent && !G.pendingOffer &&
+                       (weeksOut<=6 && weeksOut>=1) &&
+                       (!G._nextOfferWeek || G.week >= G._nextOfferWeek);
+    if(offerReady){
       buildFightOffer(evt);
       offerPending = true;
-    }
-    if(weeksOut === 1 && !evt.cardGenerated){
-      autoGenerateCard(evt);
+      G._nextOfferWeek = null;
     }
   });
 

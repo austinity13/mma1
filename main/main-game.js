@@ -1,8 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // IRON CAGE — MMA Manager
 // game.js — Constants, state, fighter generation, matchmaking, schedule,
-//            training, week logic, rendering (dashboard/training/matchmaking/
-//            org/rankings/prospects/schedule), init
+//            training, week logic, rendering, init
 // ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -162,7 +161,7 @@ const NICKNAMES = [
   'El Cucuy','The Marksman','Thunder','Rumble','Suga','The Alchemist',
   null,null,null,null,null,null
 ];
-const STYLES = ['Boxer','Wrestler','BJJ Artist','Muay Thai','Kickboxer','All-Rounder','Pressure Fighter','Counter-Striker','Brawler'];
+const STYLES = ['Striker','Wrestler','BJJ Artist','Muay Thai','Kickboxer','All-Rounder','Pressure Fighter','Counter-Striker','Brawler'];
 function pickNat(){
   // USA appears ~3x more often than any other single country (~30% of pool)
   const weighted = [];
@@ -214,15 +213,13 @@ function clamp(n,a,b){return Math.max(a,Math.min(b,n));}
 
 // Style → pillar weights (0-100 scale; applied as +/- from base roll)
 const STYLE_BIAS = {
-  'Boxer':         { boxing:26, kicking:-8, clinch_str:4, ground_str:0,
-                       takedowns:-24, td_def:0, submissions:-16, sub_def:-2,
-                       clinch_grap:0, ground_ctrl:-10,
-                       strength:6, hand_speed:16, move_speed:8, reaction:10,
-                       cardio:4, recovery:0, chin:8, body_tough:4, leg_dur:0, inj_res:2,
-                       fight_iq:6, decision:6, composure:8, aggression:2, adaptive:4,
-                       boxing_power:12, kicking_power:-10, boxing_counters:8 },
-  // Boxer: elite Western boxing — dominant jab/cross/hook, exceptional hand speed,
-  // head movement and counters. Zero kicks. Avoids grappling entirely. Pure stand-up.
+  'Striker':         { boxing:18, kicking:10, clinch_str:6, ground_str:2,
+                       takedowns:-22, td_def:2, submissions:-14, sub_def:0,
+                       clinch_grap:2, ground_ctrl:-8,
+                       strength:4, hand_speed:10, move_speed:6, reaction:8,
+                       cardio:2, recovery:-2, chin:6, body_tough:2, leg_dur:0, inj_res:0,
+                       fight_iq:4, decision:4, composure:6, aggression:4, adaptive:2,
+                       boxing_power:0, kicking_power:0, boxing_counters:2 },
 
   'Wrestler':        { boxing:-4, kicking:-8, clinch_str:6, ground_str:4,
                        takedowns:18, td_def:12, submissions:4, sub_def:6,
@@ -505,7 +502,6 @@ function genFighter(isPlayer=false, rank=null, forceDivision=null, forceNat=null
     nationality: nat,
     wins, losses,
     age: rnd(21,37),
-    totalFightsAtGen: wins+losses, // track for decline threshold
     rank: rankNum,
     height: heightIn,   // inches
     reach:  reachIn,    // inches
@@ -520,28 +516,12 @@ function genFighter(isPlayer=false, rank=null, forceDivision=null, forceNat=null
   };
   f.name = f.first+' '+f.last;
 
-  // ── Age-based mental scaling at generation ────────────────────────────────
-  // Young fighters have rawer mentals; veterans are wiser
-  {
-    const ageFactor = age < 24 ? (age - 21) / 3        // 0.0 → 1.0 ramp age 21-24
-                    : age > 33  ? 1.0 + (age - 33) * 0.05 // slight extra for veterans
-                    : 1.0;
-    const youngPenalty  = age < 24 ? Math.round((24 - age) * 3) : 0; // up to -9 at age 21
-    const vetBonus      = age > 28 ? Math.round((age - 28) * 1.5) : 0; // +1.5/yr after 28
-    const mentalKeys    = ['fight_iq','decision','composure','adaptive'];
-    mentalKeys.forEach(k=>{
-      if(f.stats.ment[k] !== undefined){
-        f.stats.ment[k] = clamp(f.stats.ment[k] - youngPenalty + vetBonus, 28, 99);
-      }
-    });
-  }
-
   // ── Preset finish rates based on archetype and wins ──────────────────────
   // Each style has a base KO%, Sub%, Dec% split (must sum to ~1.0)
   // These represent the "typical" finishing pattern for that archetype
   const STYLE_FINISH_BIAS = {
     'Brawler':         { ko:0.52, sub:0.05, dec:0.43 },
-    'Boxer':         { ko:0.44, sub:0.03, dec:0.53 }, // More KO, almost no subs
+    'Striker':         { ko:0.38, sub:0.06, dec:0.56 },
     'Kickboxer':       { ko:0.32, sub:0.06, dec:0.62 },
     'Muay Thai':       { ko:0.30, sub:0.10, dec:0.60 },
     'Pressure Fighter':{ ko:0.25, sub:0.12, dec:0.63 },
@@ -862,7 +842,7 @@ function autoGenerateCard(evt){
     // slot values: 'title' | 'main_event' | 'co_main' | 'undercard'
     const purse = isTitle ? rnd(80000,200000) : isMain ? rnd(30000,80000)
                 : slot==='co_main' ? rnd(15000,35000) : rnd(6000,18000);
-    if((evt.fights||[]).length >= 6) return; // hard cap at 6 fights
+    if((evt.fights||[]).length >= 9) return; // hard cap at 9 fights
     evt.fights.push({
       id:'f_'+Math.random().toString(36).slice(2),
       fighterId:f1.id, opponentId:f2.id,
@@ -893,8 +873,9 @@ function autoGenerateCard(evt){
   const wantUndercard = Math.max(0, 3 - filledUnderSlots);
   const totalNeeded   = wantMainCard + wantUndercard;
 
-  const mainDivs      = availDivs.slice(0, Math.min(wantMainCard, availDivs.length));
-  const undercardDivs = availDivs.slice(mainDivs.length, mainDivs.length + Math.min(wantUndercard, availDivs.length - mainDivs.length));
+  const wantRanked    = Math.min(4, wantMainCard + needCoMains); // 4 ranked bouts total
+  const mainDivs      = availDivs.slice(0, Math.min(wantRanked, availDivs.length));
+  const undercardDivs = availDivs.slice(mainDivs.length, mainDivs.length + Math.min(Math.max(0,5-filledUnderSlots), availDivs.length - mainDivs.length));
 
   // ── MAIN CARD bouts ───────────────────────────────────────────────────────
   // mainEventPlaced tracks whether the headliner has been generated yet
@@ -966,6 +947,27 @@ function autoGenerateCard(evt){
   addNews('Card set for '+evt.name+' (Wk '+evt.week+'): '+evt.fights.length+' bouts.', G.week);
 }
 
+
+// ── Determine appropriate slot for a fight based on both fighters' status ──
+function determineFightSlot(f1, f2, evt){
+  const div    = f1.division;
+  const ranked = getRankableFighters(div);
+  const f1Rank = ranked.findIndex(r=>r.id===f1.id); // 0-based; -1=unranked
+  const f2Rank = ranked.findIndex(r=>r.id===f2.id);
+  const f1Champ = f1.isChamp || f1Rank===0;
+  const f2Champ = f2.isChamp || f2Rank===0;
+  const bothRanked   = f1Rank>=0 && f2Rank>=0;
+  const eitherRanked = f1Rank>=0 || f2Rank>=0;
+  const eitherChamp  = f1Champ || f2Champ;
+  const isTitle  = (evt.type==='title') && eitherChamp;
+  const isMainEv = !isTitle && bothRanked && (f1Rank<=3 || f2Rank<=3);
+  const isCoMain = !isTitle && !isMainEv && eitherRanked;
+  if(isTitle)   return {slot:'title',      isMain:true,  isTitle:true};
+  if(isMainEv)  return {slot:'main_event', isMain:true,  isTitle:false};
+  if(isCoMain)  return {slot:'co_main',    isMain:false, isTitle:false};
+  return              {slot:'undercard',   isMain:false, isTitle:false};
+}
+
 function buildFightOffer(evt){
   if(evt.offerSent) return;
   evt.offerSent = true;
@@ -991,9 +993,14 @@ function buildFightOffer(evt){
   }
   if(!opponent) return;
 
-  const isMain = !!(yourRank && yourRank<=5);
-  const basePurse = isMain ? rnd(25000,80000) : rnd(8000,28000);
-  G.pendingOffer = {evt, yourFighter, opponent, purse:basePurse, isMain};
+  const slotInfo  = determineFightSlot(yourFighter, opponent, evt);
+  const isMain    = slotInfo.isMain;
+  const basePurse = slotInfo.isTitle        ? rnd(80000,200000)
+                  : slotInfo.slot==='main_event' ? rnd(30000,80000)
+                  : slotInfo.slot==='co_main'    ? rnd(15000,35000)
+                  : rnd(6000,20000);
+  G.pendingOffer = {evt, yourFighter, opponent, purse:basePurse, isMain,
+                    slot:slotInfo.slot, isTitleFight:slotInfo.isTitle};
   showFightOfferModal();
 }
 
@@ -1078,13 +1085,18 @@ function acceptFightOffer(customPurse){
   const finalPurse=customPurse||offer.purse;
   const {evt,yourFighter:f,opponent:o,isMain}=offer;
   if(!evt.fights) evt.fights=[];
+  const aSlot     = offer.slot || (isMain?'main_event':'undercard');
+  const aTitleFight = offer.isTitleFight||false;
   evt.fights.unshift({
     id:'f_'+Math.random().toString(36).slice(2),
     fighterId:f.id, opponentId:o.id,
     purse:finalPurse, result:null,
-    isMainEvent:isMain, slot:isMain?'main_event':'undercard',
+    isMainEvent: aSlot==='main_event',
+    isTitleFight: aTitleFight,
+    slot: aSlot,
     division:f.division, playerBooked:true
   });
+  G._nextOfferWeek = G.week + 1; // send next offer in 1 week
   addNews(f.name+' vs '+o.name+' booked for '+evt.name+' (Wk '+evt.week+') — '+fmtMoney(finalPurse),G.week);
   showToast(f.name+' booked for '+evt.name+'!');
   G.pendingOffer=null;
@@ -1121,23 +1133,47 @@ function rejectFightOffer(){
   renderAll();
 }
 
+// Format a game week as Y1 W1, Y2 W3, etc.
+function fmtWeek(w){
+  const year = Math.ceil(w/52);
+  const wk   = ((w-1)%52)+1;
+  return 'Y'+year+' W'+wk;
+}
+
+function makeEvent(week, num){
+  const isTitle = week%12===0;
+  const isMain  = !isTitle && week%6===0;
+  return {
+    id: 'evt_'+week+'_'+Math.random().toString(36).slice(2,6),
+    week, num,
+    name: 'Iron Cage '+pick(EVENT_NAMES)+' '+num,
+    type: isTitle?'title':isMain?'main':'standard',
+    fights: [],
+    cardGenerated: false,
+    offerSent: false,
+  };
+}
+
 function genSchedule(){
   G.schedule = [];
+  // Generate first 60 weeks of events (every 3 weeks)
   let num = 1;
-  for(let w=4; w<=52; w+=4){
-    const isTitle  = w%16===0;
-    const isMain   = !isTitle && w%8===0;
-    const eName    = pick(EVENT_NAMES);
-    G.schedule.push({
-      id: 'evt_'+w,
-      week: w,
-      name: 'Iron Cage '+eName+' '+num,
-      type: isTitle?'title':isMain?'main':'standard',
-      fights: [],
-      cardGenerated: false,
-      offerSent: false,
-    });
-    num++;
+  for(let w=3; w<=60; w+=3){
+    G.schedule.push(makeEvent(w, num++));
+  }
+  G._nextEventNum = num;
+}
+
+// Extend schedule — ensures there are always events at least 12 weeks ahead
+function extendSchedule(){
+  const maxWeek = G.schedule.reduce((m,e)=>Math.max(m,e.week),0);
+  const target  = G.week + 12;
+  if(maxWeek >= target) return;
+  let w = maxWeek + 3;
+  while(w <= target){
+    G.schedule.push(makeEvent(w, G._nextEventNum||99));
+    G._nextEventNum = (G._nextEventNum||99)+1;
+    w += 3;
   }
 }
 
@@ -1574,14 +1610,13 @@ function addFightToCard(eventId, purse){
   const evt = G.schedule.find(e=>e.id===eventId);
   if(!evt){ showToast('Event not found'); return; }
   if(!evt.fights) evt.fights=[];
-  const mmIsTitle = evt.type==='title' && (evt.fights||[]).length===0;
-  const mmIsMain  = (evt.fights||[]).length===0;
+  const mmSlot = determineFightSlot(f, o, evt);
   evt.fights.push({
     id: 'f_'+Math.random().toString(36).slice(2),
     fighterId: f.id, opponentId: o.id, purse, result: null,
-    isTitleFight: mmIsTitle,
-    isMainEvent:  mmIsMain && !mmIsTitle,
-    slot: mmIsTitle ? 'title' : mmIsMain ? 'main_event' : 'co_main',
+    isTitleFight: mmSlot.isTitle,
+    isMainEvent:  mmSlot.slot==='main_event',
+    slot: mmSlot.slot,
     division: f.division
   });
   addNews(f.name+' vs '+o.name+' booked for '+evt.name+' (Wk '+evt.week+')', G.week);
