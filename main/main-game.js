@@ -505,6 +505,7 @@ function genFighter(isPlayer=false, rank=null, forceDivision=null, forceNat=null
     nationality: nat,
     wins, losses,
     age: rnd(21,37),
+    totalFightsAtGen: wins+losses, // track for decline threshold
     rank: rankNum,
     height: heightIn,   // inches
     reach:  reachIn,    // inches
@@ -518,6 +519,22 @@ function genFighter(isPlayer=false, rank=null, forceDivision=null, forceNat=null
     fightHistory: [],
   };
   f.name = f.first+' '+f.last;
+
+  // ── Age-based mental scaling at generation ────────────────────────────────
+  // Young fighters have rawer mentals; veterans are wiser
+  {
+    const ageFactor = age < 24 ? (age - 21) / 3        // 0.0 → 1.0 ramp age 21-24
+                    : age > 33  ? 1.0 + (age - 33) * 0.05 // slight extra for veterans
+                    : 1.0;
+    const youngPenalty  = age < 24 ? Math.round((24 - age) * 3) : 0; // up to -9 at age 21
+    const vetBonus      = age > 28 ? Math.round((age - 28) * 1.5) : 0; // +1.5/yr after 28
+    const mentalKeys    = ['fight_iq','decision','composure','adaptive'];
+    mentalKeys.forEach(k=>{
+      if(f.stats.ment[k] !== undefined){
+        f.stats.ment[k] = clamp(f.stats.ment[k] - youngPenalty + vetBonus, 28, 99);
+      }
+    });
+  }
 
   // ── Preset finish rates based on archetype and wins ──────────────────────
   // Each style has a base KO%, Sub%, Dec% split (must sum to ~1.0)

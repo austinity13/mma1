@@ -25,7 +25,13 @@ function showFighterProfile(id){
           ${f.isProspect?'<span class="badge badge-blue">PROSPECT</span>':''}
         </div>
         ${f.nickname?`<div class="profile-nickname">${f.nickname}</div>`:''}
-        <div class="profile-meta">${f.nationality?.display||''} · ${f.stance||'Orthodox'} · ${f.style} · ${f.division} · Age ${f.age}</div>
+        <div class="profile-meta">${f.nationality?.display||''} · ${f.stance||'Orthodox'} · ${f.style} · ${f.division} · ${(()=>{
+          const age=f.age||25, fights=(f.wins||0)+(f.losses||0);
+          const inDecline=age>=34||fights>=28, inYouth=age<24;
+          const ageColor=inDecline?'var(--orange)':inYouth?'#5DADE2':'var(--text)';
+          const ageLabel=inDecline?'⏳':'';
+          return `<span style="color:\${ageColor}">\${ageLabel}Age \${age}</span>`;
+        })()}</div>
         <div class="profile-meta" style="margin-top:2px">${f.height?`${Math.floor(f.height/12)}'${f.height%12}" · Reach ${f.reach}"`:''}</div>
         <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
           <div style="font-size:10px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed';font-weight:600">POPULARITY</div>

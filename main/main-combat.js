@@ -2082,7 +2082,15 @@ function advanceWeek(){
     if(!prog) return;
     const p = TRAINING_PROGRAMS.find(x=>x.id===prog);
     G.money -= p.cost;
-    const gain = ()=>rnd(p.gain[0],p.gain[1]);
+    const age = f.age||25;
+    const fights = (f.wins||0)+(f.losses||0);
+    const inDecline = age >= 34 || fights >= 28;
+    const inYouth   = age < 24;
+    // Training multiplier based on age
+    const trainMult = inYouth ? 1.20 : inDecline ? 0.75 : 1.0;
+    const gain = ()=>Math.round(rnd(p.gain[0],p.gain[1]) * trainMult);
+    // Physical-specific multiplier for decline (harder to build physicals)
+    const physGain = ()=>Math.round(rnd(p.gain[0],p.gain[1]) * (inDecline ? 0.55 : inYouth ? 1.25 : 1.0));
     function bumpStat(obj, keys){
       // Randomly improve 2-4 sub-stats in the group
       const shuffled = [...keys].sort(()=>Math.random()-0.5).slice(0,rnd(2,4));
@@ -2147,7 +2155,7 @@ function advanceWeek(){
     } else {
       // Generic
       const k = p.stat;
-      if(f.stats.phys[k]!==undefined) f.stats.phys[k]=clamp(f.stats.phys[k]+gain(),28,99);
+      if(f.stats.phys[k]!==undefined) f.stats.phys[k]=clamp(f.stats.phys[k]+physGain(),28,99);
     }
     // Recompute rating and legacy props
     f.rating = computeRating(f.stats);
@@ -2165,6 +2173,117 @@ function advanceWeek(){
       f.condition = clamp(f.condition + 1, 0, 100);
     }
   });
+
+  // ── NPC TRAINING & RECOVERY (world pool fighters) ──────────────────────────
+  // NPCs train passively each week: small random skill improvement,
+  // condition recovery. Mirrors the player's fighters without UI selection.
+  {
+    const npcPool = [...new Map(G.opponents.map(f=>[f.id,f])).values()];
+    npcPool.forEach(f=>{
+      if(!f.stats) return;
+      // Condition recovery: NPCs bounce back ~2% per week
+      f.condition = clamp((f.condition||80) + rnd(1,3), 0, 100);
+      // Small passive skill improvement chance (3% per week per fighter)
+      if(Math.random() < 0.03){
+        const npcStatGroups = [
+          [f.stats.str.boxing,  Object.keys(f.stats.str.boxing)],
+          [f.stats.str.kicking, Object.keys(f.stats.str.kicking)],
+          [f.stats.grap.td,     Object.keys(f.stats.grap.td)],
+          [f.stats.grap.ground, Object.keys(f.stats.grap.ground)],
+          [f.stats.phys,        ['cardio','recovery','strength']],
+        ];
+        const [obj, keys] = pick(npcStatGroups);
+        const k = pick(keys);
+        if(obj[k] !== undefined) obj[k] = clamp(obj[k] + 1, 28, 99);
+      }
+    });
+  }
+
+  // ── AGE FACTOR (all fighters — roster + NPC pool) ─────────────────────────
+  // Fires every week; effects are gentle and accumulate over time.
+  {
+    const allAgingPool = [...new Map([...G.roster,...G.opponents].map(f=>[f.id,f])).values()];
+    allAgingPool.forEach(f=>{
+      if(!f.stats) return;
+      const age    = f.age    || 25;
+      const fights = (f.wins||0) + (f.losses||0);
+      const inDecline = age >= 34 || fights >= 28;
+      const inYouth   = age < 24;
+
+      // ── YOUTH DEVELOPMENT ────────────────────────────────────────────────
+      // Young fighters have a small weekly chance to naturally improve a skill
+      if(inYouth && Math.random() < 0.10){
+        const targets = [
+          [f.stats.str.boxing,  Object.keys(f.stats.str.boxing)],
+          [f.stats.str.kicking, Object.keys(f.stats.str.kicking)],
+          [f.stats.grap.td,     Object.keys(f.stats.grap.td)],
+        ];
+        const [obj, keys] = pick(targets);
+        const k = pick(keys);
+        if(obj[k] !== undefined) obj[k] = clamp(obj[k] + rnd(1,2), 28, 97);
+      }
+      // Young fighters' mentals slowly climb each week
+      if(inYouth && Math.random() < 0.06){
+        const mk = pick(['fight_iq','decision','composure','adaptive']);
+        f.stats.ment[mk] = clamp(f.stats.ment[mk] + 1, 28, 99);
+      }
+
+      // ── PHYSICAL DECLINE ─────────────────────────────────────────────────
+      if(inDecline){
+        // Physicals tick down slowly (not every week — probabilistic)
+        const physDeclineChance = 0.06 + Math.max(0, (age - 34)) * 0.008; // accelerates with age
+        if(Math.random() < physDeclineChance){
+          const decliningPhys = ['strength','hand_speed','move_speed','cardio','leg_dur'];
+          const pk = pick(decliningPhys);
+          f.stats.phys[pk] = clamp(f.stats.phys[pk] - 1, 28, 99);
+        }
+        // Chin and body_tough decline slightly (slower)
+        if(Math.random() < 0.03){
+          const dk = Math.random() < 0.5 ? 'chin' : 'body_tough';
+          f.stats.phys[dk] = clamp(f.stats.phys[dk] - 1, 28, 99);
+        }
+        // Mentals still rise slightly in decline — veterans get wiser
+        if(Math.random() < 0.04){
+          const mk = pick(['fight_iq','decision','composure','adaptive']);
+          f.stats.ment[mk] = clamp(f.stats.ment[mk] + 1, 28, 99);
+        }
+        // Skill stats mostly preserved (experience compensates) — very small chance
+        // of slight decay only in deep decline (age 38+)
+        if(age >= 38 && Math.random() < 0.03){
+          const skillGroups = [f.stats.str.boxing, f.stats.str.kicking, f.stats.grap.td];
+          const sg = pick(skillGroups);
+          const sk = pick(Object.keys(sg));
+          sg[sk] = clamp(sg[sk] - 1, 28, 99);
+        }
+      }
+
+      // ── ANNUAL AGE INCREMENT (every 52 weeks) ────────────────────────────
+      if(G.week % 52 === 0){
+        f.age = (f.age||25) + 1;
+        // News for player's fighters crossing decline threshold
+        if(G.roster.find(r=>r.id===f.id)){
+          const newAge = f.age;
+          const newFights = (f.wins||0)+(f.losses||0);
+          if(newAge === 34 || newFights === 28){
+            addNews(`⏳ ${f.name} (${newAge}) may be entering the twilight of their career. Physical decline has begun.`, G.week);
+          }
+        }
+      }
+
+      // ── RECOMPUTE RATING after age changes ───────────────────────────────
+      if(inDecline || inYouth){
+        f.rating = computeRating(f.stats);
+        const pl = getPillarScores(f);
+        f.striking=pl.striking; f.wrestling=pl.grappling;
+        f.cardio=f.stats.phys.cardio; f.chin=f.stats.phys.chin;
+        f.speed=Math.round(avg2(f.stats.phys.hand_speed,f.stats.phys.move_speed));
+        f.power=f.stats.phys.strength;
+      }
+    });
+  }
+
+  // ── TRAINING GAIN MODIFIER for roster fighters ────────────────────────────
+  // Young fighters train faster; declining fighters gain less on physicals
 
   // Pay salaries
   const total = G.roster.reduce((s,f)=>s+f.salary,0);
