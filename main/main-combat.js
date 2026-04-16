@@ -1565,7 +1565,7 @@ function buildOrgRow(f, isMine, rankNum, summary, showCut){
 
   // Status cell
   const scheduledFight = G.schedule.reduce((acc,e)=>{
-    const fi = (e.fights||[]).find(x=>x.fighterId===f.id);
+    const fi = (e.fights||[]).find(x=>(x.fighterId===f.id||x.opponentId===f.id) && !x.result && e.week>=G.week);
     return fi ? {evt:e,fi} : acc;
   }, null);
   let statusHTML = '';
@@ -1954,18 +1954,25 @@ function renderSchedule(){
       const fighter = allPool.find(r=>r.id===fi.fighterId);
       const opp = allPool.find(r=>r.id===fi.opponentId);
       if(!fighter||!opp) return '';
-      const isMine = !!G.roster.find(r=>r.id===fi.fighterId);
+      const myFighter = G.roster.find(r=>r.id===fi.fighterId) || G.roster.find(r=>r.id===fi.opponentId);
+      const isMine = !!myFighter;
+      // myResult: 'W' if my fighter won, 'L' if lost, regardless of which slot they occupy
+      const myIsF1 = isMine && !!G.roster.find(r=>r.id===fi.fighterId);
+      const myResult = isMine
+        ? (myIsF1 ? fi.result : (fi.result==='W'?'L':fi.result==='L'?'W':fi.result))
+        : fi.result;
       const isTitle = !!fi.isTitleFight;
       const isMainEvt = !!fi.isMainEvent;
-      const isMainSlot = fi.slot==='main';
-      const slotLabel = isTitle?'🏆 TITLE':isMainEvt?'⭐ MAIN EVENT':fi.slot==='co_main'?'CO-MAIN':'PRELIM';
+      const slotLabel = isTitle?'🏆 TITLE FIGHT':isMainEvt?'⭐ MAIN EVENT':fi.slot==='co_main'?'CO-MAIN':'PRELIM';
       const slotColor = isTitle?'var(--gold)':isMainEvt?'#E8A87C':fi.slot==='co_main'?'var(--muted)':'var(--border)';
-      const rowBg = isTitle?'#1A1200':isMainEvt?'#160F00':fi.slot==='co_main'?'var(--bg3)':isMine?'#1A1500':'transparent';
-      const rowBorder = isTitle?'var(--gold)':isMainEvt?'#6B4C1E':fi.slot==='co_main'?'var(--border)':'var(--border)';
+      const rowBg = isTitle?'var(--row-title)':isMainEvt?'var(--row-main)':fi.slot==='co_main'?'var(--bg3)':isMine?'var(--row-mine)':'transparent';
+      const rowBorder = isTitle?'var(--gold)':isMainEvt?'#6B4C1E':'var(--border)';
       const resultHTML = fi.result
-        ? `<span style="font-size:12px;font-weight:700;color:${fi.result==='W'?'var(--green)':'var(--red-bright)'};min-width:48px;text-align:right">${fi.result==='W'?'WIN':'LOSS'}</span>`
+        ? isMine
+          ? `<span style="font-size:12px;font-weight:700;color:${myResult==='W'?'var(--green)':'var(--red-bright)'};min-width:48px;text-align:right">${myResult==='W'?'WIN':'LOSS'} · ${fi.method||''} R${fi.round||''}</span>`
+          : `<span style="font-size:11px;color:var(--muted);min-width:48px;text-align:right">${fi.method||'Done'} R${fi.round||''}</span>`
         : (isMine && isCurrent
-            ? `<button class="btn btn-gold btn-sm" style="font-size:10px;padding:4px 10px" onclick="loadFightFromCard('${e.id}','${fi.fighterId}')">▶ Fight</button>`
+            ? `<button class="btn btn-gold btn-sm" style="font-size:10px;padding:4px 10px" onclick="loadFightFromCard('${e.id}','${myFighter.id}')">▶ Fight</button>`
             : isMine
               ? `<span style="font-size:11px;color:var(--gold)">Upcoming</span>`
               : `<span style="font-size:11px;color:var(--muted)">Pending</span>`);
@@ -2843,7 +2850,7 @@ function renderWeekCard(){
       const isMain  = !!fi.isMainEvent || fi.slot==='main';
       const isCoMain = isMain && !isTitle && !fi.isMainEvent;
       // Visual tier
-      const slotLabel = isTitle ? 'TITLE' : fi.isMainEvent ? 'MAIN' : fi.slot==='co_main' ? 'CO-MAIN' : 'PRELIM';
+      const slotLabel = isTitle ? '🏆 TITLE FIGHT' : fi.isMainEvent ? '⭐ MAIN EVENT' : fi.slot==='co_main' ? 'CO-MAIN' : 'PRELIM';
       const slotColor = isTitle ? 'var(--gold)' : fi.isMainEvent ? '#E8A87C' : fi.slot==='co_main' ? 'var(--muted)' : 'var(--border)';
       const rowBg = isTitle ? '#1A1200' : fi.isMainEvent ? '#160F00' : isMine ? '#1A1500' : 'transparent';
       const rowBorder = isTitle ? 'var(--gold)' : fi.isMainEvent ? '#6B4C1E' : 'var(--border)';

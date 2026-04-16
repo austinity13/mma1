@@ -1,5 +1,8 @@
   :root {
     --gold: #D4A017;
+    --row-title: #1A1200;
+    --row-main:  #160F00;
+    --row-mine:  #1A1500;
     --gold-dim: #8A6800;
     --red: #C0392B;
     --red-bright: #E74C3C;
@@ -35,27 +38,36 @@
     --gold:#C0780A; --gold-dim:#8A5400; --bg:#F5F5F5; --bg2:#FFFFFF; --bg3:#EEEEEE;
     --bg4:#E5E5E5; --border:#CCCCCC; --text:#1A1A1A; --muted:#777;
     --red:#C0392B; --red-bright:#E74C3C; --green:#27AE60; --blue:#2980B9; --orange:#E67E22;
+    --row-title:#FFF5E0; --row-main:#FFF8EC; --row-mine:#FFFFF0;
   }
   
   [data-theme="crimson-light"] {
     --gold:#B02030; --gold-dim:#7A1020; --bg:#FDF0F1; --bg2:#FFFFFF; --bg3:#F5E4E6;
     --bg4:#EECDD0; --border:#E0B0B5; --text:#2A0A0C; --muted:#8A5560;
     --red:#C0392B; --red-bright:#E74C3C; --green:#27AE60; --blue:#2980B9; --orange:#E67E22;
+  
+    --row-title:#FFF0F1; --row-main:#FFF0F1; --row-mine:#FFF0F1;
   }
   [data-theme="arctic-light"] {
     --gold:#1A80B8; --gold-dim:#0A5080; --bg:#F0F8FF; --bg2:#FFFFFF; --bg3:#E4F2FA;
     --bg4:#D5E9F5; --border:#B8D8EE; --text:#081828; --muted:#5A7A90;
     --red:#C0392B; --red-bright:#E74C3C; --green:#27AE60; --blue:#2980B9; --orange:#E67E22;
+  
+    --row-title:#F0F8FF; --row-main:#F0F8FF; --row-mine:#F0F8FF;
   }
   [data-theme="emerald-light"] {
     --gold:#1A7A40; --gold-dim:#0A5028; --bg:#F0FFF6; --bg2:#FFFFFF; --bg3:#E0F5E8;
     --bg4:#D0EEDA; --border:#B0DCC0; --text:#081A10; --muted:#507A60;
     --red:#C0392B; --red-bright:#E74C3C; --green:#27AE60; --blue:#2980B9; --orange:#E67E22;
+  
+    --row-title:#F0FFF6; --row-main:#F0FFF6; --row-mine:#F0FFF6;
   }
   [data-theme="royal-light"] {
     --gold:#7030A0; --gold-dim:#4A1870; --bg:#F8F0FF; --bg2:#FFFFFF; --bg3:#EEE0FA;
     --bg4:#E4D0F5; --border:#CCAAE8; --text:#180828; --muted:#706088;
     --red:#C0392B; --red-bright:#E74C3C; --green:#27AE60; --blue:#2980B9; --orange:#E67E22;
+  
+    --row-title:#F8F0FF; --row-main:#F8F0FF; --row-mine:#F8F0FF;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; font-size: 14px; min-height: 100vh; overflow-x: hidden; }

@@ -25,12 +25,13 @@ function showFighterProfile(id){
           ${f.isProspect?'<span class="badge badge-blue">PROSPECT</span>':''}
         </div>
         ${f.nickname?`<div class="profile-nickname">${f.nickname}</div>`:''}
-        <div class="profile-meta">${f.nationality?.display||''} · ${f.stance||'Orthodox'} · ${f.style} · ${f.division} · ${(()=>{
+        <div class="profile-meta">${(()=>{
           const age=f.age||25, fights=(f.wins||0)+(f.losses||0);
           const inDecline=age>=34||fights>=28, inYouth=age<24;
           const ageColor=inDecline?'var(--orange)':inYouth?'#5DADE2':'var(--text)';
-          const ageLabel=inDecline?'⏳':'';
-          return `<span style="color:\${ageColor}">\${ageLabel}Age \${age}</span>`;
+          const ageLabel=inDecline?'⏳ ':'';
+          const ageSpan='<span style="color:'+ageColor+'">'+ageLabel+'Age '+age+'</span>';
+          return f.nationality?.display+' · '+(f.stance||'Orthodox')+' · '+f.style+' · '+f.division+' · '+ageSpan;
         })()}</div>
         <div class="profile-meta" style="margin-top:2px">${f.height?`${Math.floor(f.height/12)}'${f.height%12}" · Reach ${f.reach}"`:''}</div>
         <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
@@ -68,7 +69,7 @@ function showFighterProfile(id){
 
     <div>
       <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;font-weight:600">Fight History</div>
-      ${(f.fightHistory&&f.fightHistory.length>0) ? f.fightHistory.slice(0,10).map((h,idx)=>`
+      ${(f.fightHistory&&f.fightHistory.length>0) ? f.fightHistory.slice(0,50).map((h,idx)=>`
         <div class="history-row">
           <div class="result-pill result-${h.result.toLowerCase()}">${h.result}</div>
           <div style="flex:1">

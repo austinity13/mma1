@@ -161,7 +161,7 @@ const NICKNAMES = [
   'El Cucuy','The Marksman','Thunder','Rumble','Suga','The Alchemist',
   null,null,null,null,null,null
 ];
-const STYLES = ['Striker','Wrestler','BJJ Artist','Muay Thai','Kickboxer','All-Rounder','Pressure Fighter','Counter-Striker','Brawler'];
+const STYLES = ['Boxer','Wrestler','BJJ Artist','Muay Thai','Kickboxer','All-Rounder','Pressure Fighter','Counter-Striker','Brawler'];
 function pickNat(){
   // USA appears ~3x more often than any other single country (~30% of pool)
   const weighted = [];
@@ -213,7 +213,7 @@ function clamp(n,a,b){return Math.max(a,Math.min(b,n));}
 
 // Style → pillar weights (0-100 scale; applied as +/- from base roll)
 const STYLE_BIAS = {
-  'Striker':         { boxing:18, kicking:10, clinch_str:6, ground_str:2,
+  'Boxer':           { boxing:26, kicking:10, clinch_str:6, ground_str:2,
                        takedowns:-22, td_def:2, submissions:-14, sub_def:0,
                        clinch_grap:2, ground_ctrl:-8,
                        strength:4, hand_speed:10, move_speed:6, reaction:8,
@@ -521,7 +521,7 @@ function genFighter(isPlayer=false, rank=null, forceDivision=null, forceNat=null
   // These represent the "typical" finishing pattern for that archetype
   const STYLE_FINISH_BIAS = {
     'Brawler':         { ko:0.52, sub:0.05, dec:0.43 },
-    'Striker':         { ko:0.38, sub:0.06, dec:0.56 },
+    'Boxer':           { ko:0.44, sub:0.03, dec:0.53 },
     'Kickboxer':       { ko:0.32, sub:0.06, dec:0.62 },
     'Muay Thai':       { ko:0.30, sub:0.10, dec:0.60 },
     'Pressure Fighter':{ ko:0.25, sub:0.12, dec:0.63 },
@@ -1274,7 +1274,7 @@ function addNews(txt, week){
 
 // ===================== RENDER ALL =====================
 function renderAll(){
-  document.getElementById('hud-week').textContent = G.week;
+  document.getElementById('hud-week').textContent = fmtWeek(G.week);
   document.getElementById('hud-money').textContent = fmtMoney(G.money);
   document.getElementById('hud-rep').textContent = G.rep;
   document.getElementById('dash-wins').textContent = G.totalWins;
@@ -1502,7 +1502,10 @@ function renderMatchmaking(preselectedFighterId){
   if(!G.selectedFighter){ mo.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">Select your fighter first</div>'; renderMatchup(); return; }
   const div = G.selectedFighter.division;
   // Only show opponents with positive records
-  const validOpps = G.opponents.filter(o=>o.division===div && o.wins>o.losses);
+  const rosterIds = new Set(G.roster.map(r=>r.id));
+  const validOpps = G.opponents.filter(o=>
+    o.division===div && o.wins>o.losses && !rosterIds.has(o.id)
+  );
   const opts = validOpps.sort((a,b)=>Math.abs(a.rating-G.selectedFighter.rating)-Math.abs(b.rating-G.selectedFighter.rating)).slice(0,10);
   mo.innerHTML = opts.map(o=>{
     const diff = o.rating - G.selectedFighter.rating;
