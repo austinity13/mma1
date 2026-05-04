@@ -816,156 +816,134 @@ function pickSmartOpponent(f1, candidates, usedIds, weeksBack=8){
   return pick(available);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CARD GENERATION
+// Structure: exactly 5 MAIN CARD fights + 5 UNDERCARD fights = 10 total
+// Main card: ranked fighters (top 10). Undercard: unranked / low-ranked.
+// Player-booked fights count toward the appropriate bucket.
+// Slots: 'main_card' or 'undercard' — no more title/co-main distinctions.
+// The top fight on main card is treated as the headliner (displayed last).
+// ─────────────────────────────────────────────────────────────────────────────
 function autoGenerateCard(evt){
   if(evt.cardGenerated) return;
   evt.cardGenerated = true;
 
   const allPool = [...new Map([...G.roster,...G.opponents].map(f=>[f.id,f])).values()];
   const usedIds = new Set();
-  // Don't rebook fighters already on this card (player bookings)
   (evt.fights||[]).forEach(fi=>{ usedIds.add(fi.fighterId); usedIds.add(fi.opponentId); });
 
-  // Divisions already covered by player bookings
-  const usedDivs = new Set((evt.fights||[]).map(fi=>{
-    const f = allPool.find(x=>x.id===fi.fighterId);
-    return f?.division;
-  }));
-  const availDivs = [...DIVISIONS].filter(d=>!usedDivs.has(d)).sort(()=>Math.random()-0.5);
-
-  function getRanked(div){ return getRankableFighters(div); }
+  function getRanked(div){ return getRankableFighters(div).filter(f=>!usedIds.has(f.id)&&!isBooked(f.id)); }
   function getUnranked(div){
-    const r10ids = new Set(getRanked(div).map(f=>f.id));
-    return allPool.filter(f=>f.division===div && f.wins>f.losses && !r10ids.has(f.id) && !usedIds.has(f.id) && !isBooked(f.id));
+    const r10ids = new Set(getRankableFighters(div).map(f=>f.id));
+    return allPool.filter(f=>f.division===div && !r10ids.has(f.id) && !usedIds.has(f.id) && !isBooked(f.id));
   }
 
-  function bookFight(f1, f2, slot, isMain, isTitle, div){
-    // slot values: 'title' | 'main_event' | 'co_main' | 'undercard'
-    const purse = isTitle ? rnd(80000,200000) : isMain ? rnd(30000,80000)
-                : slot==='co_main' ? rnd(15000,35000) : rnd(6000,18000);
-    if((evt.fights||[]).length >= 9) return; // hard cap at 9 fights
+  // Count how many player-booked fights are in each bucket
+  const existing     = evt.fights || [];
+  const playerMain   = existing.filter(fi=>fi.playerBooked && fi.slot==='main_card').length;
+  const playerUnder  = existing.filter(fi=>fi.playerBooked && fi.slot==='undercard').length;
+
+  // How many to auto-generate in each bucket
+  let needMain  = Math.max(0, 5 - existing.filter(fi=>fi.slot==='main_card').length);
+  let needUnder = Math.max(0, 5 - existing.filter(fi=>fi.slot==='undercard').length);
+
+  function bookFight(f1, f2, slot, div){
+    const isMainCard = slot==='main_card';
+    const purse = isMainCard ? rnd(20000,80000) : rnd(5000,18000);
     evt.fights.push({
       id:'f_'+Math.random().toString(36).slice(2),
       fighterId:f1.id, opponentId:f2.id,
       purse, result:null,
-      isMainEvent: isMain && !isTitle,
-      isTitleFight: isTitle,
+      isMainEvent: false, isTitleFight: false,
       slot, division:div||f1.division
     });
     usedIds.add(f1.id); usedIds.add(f2.id);
   }
 
-  // Hard cap: card always has exactly 6 fights total
-  // Detect the player's slot to avoid duplicating it
-  const existingFights = evt.fights || [];
-  const playerFight = existingFights.find(fi => fi.playerBooked);
-  const playerSlot  = playerFight ? (playerFight.isTitleFight ? 'title' : playerFight.isMainEvent ? 'main_event' : playerFight.slot || 'undercard') : null;
+  // Use random divisions for variety — shuffle available divisions
+  const shuffleDivs = [...DIVISIONS].sort(()=>Math.random()-0.5);
 
-  // Decide how many main-card vs undercard slots to fill
-  // Standard card: 1 main event + 2 co-mains + 3 undercards = 6
-  // If player occupies a main-card slot, we still fill to 6 total
-  const needMainEvent = playerSlot !== 'main_event' && playerSlot !== 'title';
-  const needCoMains   = playerSlot === 'co_main' ? 1 : 2; // player takes one co-main slot if applicable
-  const filledMainSlots = existingFights.filter(fi => fi.slot === 'main_event' || fi.slot === 'title' || fi.slot === 'co_main').length;
-  const filledUnderSlots = existingFights.filter(fi => fi.slot === 'undercard').length;
+  // ── MAIN CARD (ranked fights) ─────────────────────────────────────────────
+  let mainBooked = 0;
+  for(const div of shuffleDivs){
+    if(mainBooked >= needMain) break;
+    const ranked = getRanked(div);
+    if(ranked.length < 2) continue;
+    const f1 = ranked[0]; // highest ranked available
+    const f2 = pickSmartOpponent(f1, ranked.slice(1), usedIds);
+    if(!f1||!f2) continue;
+    bookFight(f1, f2, 'main_card', div);
+    mainBooked++;
+  }
 
-  // How many of each type to auto-generate
-  const wantMainCard  = Math.max(0, (needMainEvent ? 1 : 0) + needCoMains - filledMainSlots);
-  const wantUndercard = Math.max(0, 3 - filledUnderSlots);
-  const totalNeeded   = wantMainCard + wantUndercard;
-
-  const wantRanked    = Math.min(4, wantMainCard + needCoMains); // 4 ranked bouts total
-  const mainDivs      = availDivs.slice(0, Math.min(wantRanked, availDivs.length));
-  const undercardDivs = availDivs.slice(mainDivs.length, mainDivs.length + Math.min(Math.max(0,5-filledUnderSlots), availDivs.length - mainDivs.length));
-
-  // ── MAIN CARD bouts ───────────────────────────────────────────────────────
-  // mainEventPlaced tracks whether the headliner has been generated yet
-  let mainEventPlaced = !needMainEvent; // if player IS the main event, skip generating one
-  mainDivs.forEach((div)=>{
-    if((evt.fights||[]).length >= 6) return;
-    const isTitle = evt.type==='title' && !mainEventPlaced;
-    const ranked  = getRanked(div);
-    const avail   = ranked.filter(f=>!usedIds.has(f.id)&&!isBooked(f.id));
-    if(avail.length < 2) return;
-
-    if(isTitle){
-      const champ = avail[0];
-      const contender = avail.find(f=>f.id!==champ.id) || null;
-      if(!contender) return;
-      bookFight(champ, contender, 'title', true, true, div);
-      mainEventPlaced = true;
-      return;
-    }
-
-    if(!mainEventPlaced){
-      // Generate main event headliner
-      const top4 = avail.slice(0,4);
-      const f1 = top4[0];
-      const f2 = pickSmartOpponent(f1, top4.slice(1), usedIds);
-      if(!f1||!f2) return;
-      bookFight(f1, f2, 'main_event', true, false, div);
-      mainEventPlaced = true;
-    } else {
-      // Co-main bout
-      const mid = avail.slice(2,7);
-      if(mid.length<2) return;
-      const onLoss = mid.find(f=>(G.consecutiveLosses[f.id]||0)>=1);
-      const f1 = onLoss || pick(mid);
-      const lowerRanked = avail.filter(f=>f.id!==f1.id && avail.indexOf(f)>avail.indexOf(f1));
-      const f2 = pickSmartOpponent(f1, lowerRanked.length>0?lowerRanked:mid.filter(f=>f.id!==f1.id), usedIds);
-      if(!f1||!f2) return;
-      bookFight(f1, f2, 'co_main', false, false, div);
-    }
-  });
-
-  // ── UNDERCARD (3 bouts) ────────────────────────────────────────────────────
-  undercardDivs.forEach(div=>{
-    const ranked  = getRanked(div);
-    const avail   = ranked.filter(f=>!usedIds.has(f.id)&&!isBooked(f.id));
-    const unranked = getUnranked(div);
-
-    // Prefer unranked vs unranked; fallback to low-ranked vs unranked
-    if(unranked.length>=2){
-      const f1 = pick(unranked);
+  // Fallback: if not enough ranked fights from unique divs, reuse divs
+  if(mainBooked < needMain){
+    for(const div of shuffleDivs){
+      if(mainBooked >= needMain) break;
+      const ranked = getRanked(div);
+      if(ranked.length < 2) continue;
+      const f1 = pick(ranked);
       usedIds.add(f1.id);
-      const f2 = pickSmartOpponent(f1, unranked, usedIds, 12);
-      if(!f2){ usedIds.delete(f1.id); return; }
-      bookFight(f1, f2, 'undercard', false, false, div);
-    } else if(avail.length>=1 && unranked.length>=1){
-      // Low-ranked vs unranked step-up fight
-      const f1 = avail[avail.length-1]; // lowest ranked
-      const f2 = pick(unranked.filter(u=>u.id!==f1.id));
-      if(!f2) return;
-      bookFight(f1, f2, 'undercard', false, false, div);
-    } else if(avail.length>=2){
-      // All ranked — use bottom of the card
-      const f1 = avail[avail.length-2];
-      const f2 = avail[avail.length-1];
-      bookFight(f1, f2, 'undercard', false, false, div);
+      const f2 = pickSmartOpponent(f1, ranked, usedIds);
+      if(!f2){ usedIds.delete(f1.id); continue; }
+      bookFight(f1, f2, 'main_card', div);
+      mainBooked++;
     }
-  });
+  }
 
-  addNews('Card set for '+evt.name+' (Wk '+evt.week+'): '+evt.fights.length+' bouts.', G.week);
+  // ── UNDERCARD (unranked fights) ───────────────────────────────────────────
+  let underBooked = 0;
+  for(const div of shuffleDivs){
+    if(underBooked >= needUnder) break;
+    const unranked = getUnranked(div);
+    if(unranked.length >= 2){
+      const f1 = pick(unranked); usedIds.add(f1.id);
+      const f2 = pickSmartOpponent(f1, getUnranked(div), usedIds, 12);
+      if(!f2){ usedIds.delete(f1.id); continue; }
+      bookFight(f1, f2, 'undercard', div);
+      underBooked++;
+    }
+  }
+
+  // Fallback undercard: use low-ranked vs unranked if not enough pure unranked
+  if(underBooked < needUnder){
+    for(const div of shuffleDivs){
+      if(underBooked >= needUnder) break;
+      const unranked = getUnranked(div);
+      const ranked   = getRanked(div);
+      if(unranked.length >= 1 && ranked.length >= 1){
+        const f1 = ranked[ranked.length-1];
+        usedIds.add(f1.id);
+        const f2 = pick(unranked.filter(u=>u.id!==f1.id));
+        if(!f2){ usedIds.delete(f1.id); continue; }
+        bookFight(f1, f2, 'undercard', div);
+        underBooked++;
+      } else if(ranked.length >= 2){
+        const f1 = ranked[ranked.length-2];
+        usedIds.add(f1.id);
+        const f2 = ranked[ranked.length-1];
+        if(!f2){ usedIds.delete(f1.id); continue; }
+        bookFight(f1, f2, 'undercard', div);
+        underBooked++;
+      }
+    }
+  }
+
+  addNews('Card set for '+evt.name+' ('+fmtWeek(evt.week)+'): '+evt.fights.length+' bouts.', G.week);
 }
 
 
-// ── Determine appropriate slot for a fight based on both fighters' status ──
+
+// ── Determine appropriate slot: main_card (ranked) or undercard ─────────────
 function determineFightSlot(f1, f2, evt){
   const div    = f1.division;
   const ranked = getRankableFighters(div);
   const f1Rank = ranked.findIndex(r=>r.id===f1.id); // 0-based; -1=unranked
   const f2Rank = ranked.findIndex(r=>r.id===f2.id);
-  const f1Champ = f1.isChamp || f1Rank===0;
-  const f2Champ = f2.isChamp || f2Rank===0;
-  const bothRanked   = f1Rank>=0 && f2Rank>=0;
   const eitherRanked = f1Rank>=0 || f2Rank>=0;
-  const eitherChamp  = f1Champ || f2Champ;
-  const isTitle  = (evt.type==='title') && eitherChamp;
-  const isMainEv = !isTitle && bothRanked && (f1Rank<=3 || f2Rank<=3);
-  const isCoMain = !isTitle && !isMainEv && eitherRanked;
-  if(isTitle)   return {slot:'title',      isMain:true,  isTitle:true};
-  if(isMainEv)  return {slot:'main_event', isMain:true,  isTitle:false};
-  if(isCoMain)  return {slot:'co_main',    isMain:false, isTitle:false};
-  return              {slot:'undercard',   isMain:false, isTitle:false};
+  // If either fighter is ranked → main card. Both unranked → undercard.
+  if(eitherRanked) return {slot:'main_card', isMain:true,  isTitle:false};
+  return               {slot:'undercard',  isMain:false, isTitle:false};
 }
 
 function buildFightOffer(evt){
@@ -995,10 +973,7 @@ function buildFightOffer(evt){
 
   const slotInfo  = determineFightSlot(yourFighter, opponent, evt);
   const isMain    = slotInfo.isMain;
-  const basePurse = slotInfo.isTitle        ? rnd(80000,200000)
-                  : slotInfo.slot==='main_event' ? rnd(30000,80000)
-                  : slotInfo.slot==='co_main'    ? rnd(15000,35000)
-                  : rnd(6000,20000);
+  const basePurse = slotInfo.isMain ? rnd(20000,80000) : rnd(5000,18000);
   G.pendingOffer = {evt, yourFighter, opponent, purse:basePurse, isMain,
                     slot:slotInfo.slot, isTitleFight:slotInfo.isTitle};
   showFightOfferModal();
@@ -1085,13 +1060,13 @@ function acceptFightOffer(customPurse){
   const finalPurse=customPurse||offer.purse;
   const {evt,yourFighter:f,opponent:o,isMain}=offer;
   if(!evt.fights) evt.fights=[];
-  const aSlot     = offer.slot || (isMain?'main_event':'undercard');
-  const aTitleFight = offer.isTitleFight||false;
+  const aSlot     = offer.slot || (offer.isMain?'main_card':'undercard');
+  const aTitleFight = false; // no separate title slot
   evt.fights.unshift({
     id:'f_'+Math.random().toString(36).slice(2),
     fighterId:f.id, opponentId:o.id,
     purse:finalPurse, result:null,
-    isMainEvent: aSlot==='main_event',
+    isMainEvent: false,
     isTitleFight: aTitleFight,
     slot: aSlot,
     division:f.division, playerBooked:true
@@ -1618,8 +1593,8 @@ function addFightToCard(eventId, purse){
     id: 'f_'+Math.random().toString(36).slice(2),
     fighterId: f.id, opponentId: o.id, purse, result: null,
     isTitleFight: mmSlot.isTitle,
-    isMainEvent:  mmSlot.slot==='main_event',
-    slot: mmSlot.slot,
+    isMainEvent:  false,
+    slot: mmSlot.slot==='main_card'?'main_card':'undercard',
     division: f.division
   });
   addNews(f.name+' vs '+o.name+' booked for '+evt.name+' (Wk '+evt.week+')', G.week);
